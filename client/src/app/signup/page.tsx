@@ -8,7 +8,7 @@ import { useExtracted } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parseAsInteger, useQueryState } from "nuqs";
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useState } from "react";
 import { addSite } from "../../api/admin/endpoints";
 import { RybbitLogo, RybbitTextLogo } from "../../components/RybbitLogo";
 
@@ -30,15 +30,14 @@ function SignupPageContent() {
   const t = useExtracted();
 
   const maxStep = IS_CLOUD ? 3 : 2;
-  const [currentStep, setCurrentStep] = useState(1);
-  const [stepParam] = useQueryState("step", parseAsInteger);
+  const [stepParam, setStepParam] = useQueryState("step", parseAsInteger);
+  const [currentStep, setCurrentStepRaw] = useState(stepParam && stepParam >= 1 && stepParam <= maxStep ? stepParam : 1);
 
-  // Sync URL step param with local state on mount
-  useEffect(() => {
-    if (stepParam && stepParam >= 1 && stepParam <= maxStep) {
-      setCurrentStep(stepParam);
-    }
-  }, [stepParam]);
+  // Wrap setCurrentStep to also update the URL param
+  const setCurrentStep = (step: number) => {
+    setCurrentStepRaw(step);
+    setStepParam(step);
+  };
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const router = useRouter();
@@ -218,16 +217,15 @@ function SignupPageContent() {
     }
   };
 
-  // Step labels: Cloud = Account → Setup → Plan, Self-hosted = Account → Setup
   const steps = IS_CLOUD
     ? [
       { step: 1, label: t("Account") },
-      { step: 2, label: t("Setup") },
-      { step: 3, label: t("Plan") },
+      { step: 2, label: t("Add site") },
+      { step: 3, label: t("Pick plan") },
     ]
     : [
       { step: 1, label: t("Account") },
-      { step: 2, label: t("Setup") },
+      { step: 2, label: t("Add site") },
     ];
 
   const renderStepContent = () => {
@@ -318,7 +316,7 @@ function SignupPageContent() {
 
         <div className="flex-1 flex flex-col justify-center w-full max-w-[550px] mx-auto">
           <h1 className="text-lg text-neutral-600 dark:text-neutral-300 mb-6">
-            {t("Get started with Rybbit")}
+            {IS_CLOUD ? t("Start your 7-day free trial") : t("Get started with Rybbit")}
           </h1>
 
           {/* Horizontal step indicator */}
