@@ -36,7 +36,7 @@ function SignupPageContent() {
 
   // Sync URL step param with local state on mount
   useEffect(() => {
-    if (stepParam && stepParam >= 1 && stepParam <= 3) {
+    if (stepParam && stepParam >= 1 && stepParam <= 2) {
       setCurrentStep(stepParam);
     }
   }, [stepParam]);
@@ -54,8 +54,7 @@ function SignupPageContent() {
   const [orgSlug, setOrgSlug] = useState("");
   const [referralSource, setReferralSource] = useState("");
 
-  // Step 3: Website addition
-  const [organizationId, setOrganizationId] = useState("");
+  // Step 2: Website addition
   const [domain, setDomain] = useState("");
 
   // Handle organization name change and generate slug
@@ -115,12 +114,19 @@ function SignupPageContent() {
     }
   };
 
-  // Step 2: Organization creation submission
-  const handleOrganizationSubmit = async () => {
+  // Step 2: Organization creation + website addition submission
+  const handleSetupSubmit = async () => {
     setIsLoading(true);
     setError("");
 
     try {
+      // Validate domain
+      if (!isValidDomain(domain)) {
+        setError(t("Invalid domain format. Must be a valid domain like example.com or sub.example.com"));
+        setIsLoading(false);
+        return;
+      }
+
       // Create organization
       const { data, error } = await authClient.organization.create({
         name: orgName,
@@ -140,8 +146,6 @@ function SignupPageContent() {
         organizationId: data.id,
       });
 
-      setOrganizationId(data.id);
-
       // Track how user found Rybbit
       if (IS_CLOUD && referralSource && userStore.getState().user?.id) {
         window.rybbit?.identify(userStore.getState().user?.id || "", {
@@ -149,37 +153,13 @@ function SignupPageContent() {
         });
       }
 
-      setCurrentStep(3);
-    } catch (error) {
-      setError(String(error));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Step 3: Website addition submission
-  const handleWebsiteSubmit = async () => {
-    setIsLoading(true);
-    setError("");
-
-    try {
-      // Validate domain
-      if (!isValidDomain(domain)) {
-        setError(t("Invalid domain format. Must be a valid domain like example.com or sub.example.com"));
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const normalizedDomain = normalizeDomain(domain);
-        const response = await addSite(normalizedDomain, normalizedDomain, organizationId);
-        if (IS_CLOUD) {
-          router.push("/subscribe?siteId=" + response.siteId);
-        } else {
-          router.push(`/${response.siteId}`);
-        }
-      } catch (error) {
-        setError(String(error));
+      // Add website
+      const normalizedDomain = normalizeDomain(domain);
+      const response = await addSite(normalizedDomain, normalizedDomain, data.id);
+      if (IS_CLOUD) {
+        router.push("/subscribe?siteId=" + response.siteId);
+      } else {
+        router.push(`/${response.siteId}`);
       }
     } catch (error) {
       setError(String(error));
@@ -249,8 +229,22 @@ function SignupPageContent() {
       case 2:
         return (
           <div>
-            <h2 className="text-2xl font-semibold mb-4">{t("Create your organization")}</h2>
+            <h2 className="text-2xl font-semibold mb-4">{t("Set up your workspace")}</h2>
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="domain">{t("Website Domain")}</Label>
+                <Input
+                  id="domain"
+                  type="text"
+                  placeholder="example.com or sub.example.com"
+                  value={domain}
+                  onChange={e => setDomain(e.target.value.toLowerCase())}
+                  required
+                  className="h-10 transition-all bg-neutral-100 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700"
+                />
+                <p className="text-xs text-muted-foreground">{t("Enter the domain of the website you want to track")}</p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="orgName">{t("Organization Name")}</Label>
                 <Input
@@ -290,68 +284,15 @@ function SignupPageContent() {
                 </div>
               )}
 
-              {/* <div className="space-y-2">
-                <Label htmlFor="orgSlug">Organization Slug</Label>
-                <Input
-                  id="orgSlug"
-                  type="text"
-                  placeholder="acme-inc"
-                  value={orgSlug}
-                  onChange={(e) =>
-                    setOrgSlug(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/\s+/g, "-")
-                        .replace(/[^a-z0-9-]/g, "")
-                    )
-                  }
-                  required
-                  className="h-10 transition-all bg-neutral-800/50 border-neutral-700"
-                />
-              </div> */}
-
               <Button
                 className="w-full transition-all duration-300 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
-                onClick={handleOrganizationSubmit}
-                disabled={isLoading || !orgName || !orgSlug || (IS_CLOUD && !referralSource)}
+                onClick={handleSetupSubmit}
+                disabled={isLoading || !orgName || !orgSlug || !domain || !isValidDomain(domain) || (IS_CLOUD && !referralSource)}
                 variant="success"
               >
                 {t("Continue")}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-            </div>
-          </div>
-        );
-      case 3:
-        return (
-          <div>
-            <h2 className="text-2xl font-semibold mb-4">{t("Add your site")}</h2>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="domain">{t("Website Domain")}</Label>
-                <Input
-                  id="domain"
-                  type="text"
-                  placeholder="example.com or sub.example.com"
-                  value={domain}
-                  onChange={e => setDomain(e.target.value.toLowerCase())}
-                  required
-                  className="h-10 transition-all bg-neutral-100 dark:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700"
-                />
-                <p className="text-xs text-muted-foreground">{t("Enter the domain of the website you want to track")}</p>
-              </div>
-
-              <div className="flex justify-between">
-                <Button
-                  className="w-full transition-all duration-300 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
-                  onClick={handleWebsiteSubmit}
-                  disabled={isLoading || !domain || !isValidDomain(domain)}
-                  variant="success"
-                >
-                  {t("Continue")}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
         );
@@ -405,8 +346,7 @@ function SignupPageContent() {
           <div className="flex items-center w-full mb-8">
             {[
               { step: 1, label: t("Account") },
-              { step: 2, label: t("Organization") },
-              { step: 3, label: t("Website") },
+              { step: 2, label: t("Setup") },
             ].map(({ step, label }, index) => (
               <React.Fragment key={step}>
                 <div className="flex flex-col items-center gap-2">
@@ -433,7 +373,7 @@ function SignupPageContent() {
                     {label}
                   </span>
                 </div>
-                {index < 2 && (
+                {index < 1 && (
                   <div
                     className={cn(
                       "flex-1 h-0.5 mx-3 mb-6 transition-all duration-300 rounded-full",
