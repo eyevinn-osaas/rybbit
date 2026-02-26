@@ -113,7 +113,10 @@ function SignupPageContent() {
     }
   };
 
-  // Setup submission: create org + site, then checkout (cloud) or redirect (self-hosted)
+  // Step 2: Setup submission — create org + site, then advance (cloud) or redirect (self-hosted)
+  const [siteId, setSiteId] = useState<number | null>(null);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+
   const handleSetupSubmit = async () => {
     setIsLoading(true);
     setError("");
@@ -152,44 +155,9 @@ function SignupPageContent() {
       const response = await addSite(normalizedDomain, normalizedDomain, data.id);
 
       if (IS_CLOUD) {
-        // Create Stripe checkout session using plan selected in step 2
-        const eventLimit = EVENT_TIERS[eventLimitIndex];
-        if (eventLimit === "Custom") return;
-
-        const selectedTierPrice = findPriceForTier(
-          eventLimit,
-          isAnnual ? "year" : "month",
-          selectedPlan
-        );
-
-        if (!selectedTierPrice) {
-          setError("Could not find a matching plan. Please try a different selection.");
-          return;
-        }
-
-        const baseUrl = window.location.origin;
-        const returnUrl = `${baseUrl}/${response.siteId}?session_id={CHECKOUT_SESSION_ID}`;
-
-        const checkoutResponse = await fetch(`${BACKEND_URL}/stripe/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            priceId: selectedTierPrice.priceId,
-            returnUrl,
-            organizationId: data.id,
-            referral: (window as any).Rewardful?.referral || undefined,
-          }),
-        });
-
-        const checkoutData = await checkoutResponse.json();
-
-        if (!checkoutResponse.ok) {
-          throw new Error(checkoutData.error || "Failed to create checkout session");
-        }
-
-        trackAdEvent("checkout", { tier: selectedTierPrice.name });
-        setCheckoutClientSecret(checkoutData.clientSecret);
+        setSiteId(response.siteId);
+        setOrganizationId(data.id);
+        setCurrentStep(3);
       } else {
         router.push(`/${response.siteId}`);
       }
@@ -200,12 +168,62 @@ function SignupPageContent() {
     }
   };
 
-  // Step labels: Cloud = Account → Plan → Setup, Self-hosted = Account → Setup
+  // Step 3 (cloud): Create checkout session and open modal
+  const handleSubscribe = async () => {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const eventLimit = EVENT_TIERS[eventLimitIndex];
+      if (eventLimit === "Custom") return;
+
+      const selectedTierPrice = findPriceForTier(
+        eventLimit,
+        isAnnual ? "year" : "month",
+        selectedPlan
+      );
+
+      if (!selectedTierPrice) {
+        setError("Could not find a matching plan. Please try a different selection.");
+        return;
+      }
+
+      const baseUrl = window.location.origin;
+      const returnUrl = `${baseUrl}/${siteId}?session_id={CHECKOUT_SESSION_ID}`;
+
+      const checkoutResponse = await fetch(`${BACKEND_URL}/stripe/create-checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          priceId: selectedTierPrice.priceId,
+          returnUrl,
+          organizationId,
+          referral: (window as any).Rewardful?.referral || undefined,
+        }),
+      });
+
+      const checkoutData = await checkoutResponse.json();
+
+      if (!checkoutResponse.ok) {
+        throw new Error(checkoutData.error || "Failed to create checkout session");
+      }
+
+      trackAdEvent("checkout", { tier: selectedTierPrice.name });
+      setCheckoutClientSecret(checkoutData.clientSecret);
+    } catch (error) {
+      setError(String(error));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Step labels: Cloud = Account → Setup → Plan, Self-hosted = Account → Setup
   const steps = IS_CLOUD
     ? [
       { step: 1, label: t("Account") },
-      { step: 2, label: t("Plan") },
-      { step: 3, label: t("Setup") },
+      { step: 2, label: t("Setup") },
+      { step: 3, label: t("Plan") },
     ]
     : [
       { step: 1, label: t("Account") },
@@ -229,17 +247,7 @@ function SignupPageContent() {
           />
         );
       case 2:
-        return IS_CLOUD ? (
-          <PlanStep
-            eventLimitIndex={eventLimitIndex}
-            setEventLimitIndex={setEventLimitIndex}
-            isAnnual={isAnnual}
-            setIsAnnual={setIsAnnual}
-            selectedPlan={selectedPlan}
-            setSelectedPlan={setSelectedPlan}
-            onContinue={() => setCurrentStep(3)}
-          />
-        ) : (
+        return (
           <SetupStep
             domain={domain}
             setDomain={setDomain}
@@ -254,16 +262,15 @@ function SignupPageContent() {
         );
       case 3:
         return (
-          <SetupStep
-            domain={domain}
-            setDomain={setDomain}
-            orgName={orgName}
-            orgSlug={orgSlug}
-            handleOrgNameChange={handleOrgNameChange}
-            referralSource={referralSource}
-            setReferralSource={setReferralSource}
+          <PlanStep
+            eventLimitIndex={eventLimitIndex}
+            setEventLimitIndex={setEventLimitIndex}
+            isAnnual={isAnnual}
+            setIsAnnual={setIsAnnual}
+            selectedPlan={selectedPlan}
+            setSelectedPlan={setSelectedPlan}
+            onSubscribe={handleSubscribe}
             isLoading={isLoading}
-            onSubmit={handleSetupSubmit}
           />
         );
       default:

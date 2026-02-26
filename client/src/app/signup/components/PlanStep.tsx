@@ -14,7 +14,8 @@ interface PlanStepProps {
   setIsAnnual: (v: boolean) => void;
   selectedPlan: "basic" | "standard" | "pro";
   setSelectedPlan: (v: "basic" | "standard" | "pro") => void;
-  onContinue: () => void;
+  onSubscribe: () => void;
+  isLoading: boolean;
 }
 
 function PlanRow({
@@ -115,7 +116,8 @@ export function PlanStep({
   setIsAnnual,
   selectedPlan,
   setSelectedPlan,
-  onContinue,
+  onSubscribe,
+  isLoading,
 }: PlanStepProps) {
   const t = useExtracted();
   const eventLimit = EVENT_TIERS[eventLimitIndex];
@@ -240,14 +242,15 @@ export function PlanStep({
           </div>
         </div>
 
-        {/* Continue button */}
+        {/* Subscribe button */}
         {eventLimit !== "Custom" && (
           <Button
             className="w-full transition-all duration-300 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
-            onClick={onContinue}
+            onClick={onSubscribe}
+            disabled={isLoading}
             variant="success"
           >
-            {t("Continue")}
+            {isLoading ? t("Loading...") : t("Start free trial")}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         )}
