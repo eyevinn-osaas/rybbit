@@ -30,7 +30,7 @@ function SignupPageContent() {
   const t = useExtracted();
 
   const maxStep = IS_CLOUD ? 3 : 2;
-  const [currentStep, setCurrentStep] = useState(2);
+  const [currentStep, setCurrentStep] = useState(1);
   const [stepParam] = useQueryState("step", parseAsInteger);
 
   // Sync URL step param with local state on mount
