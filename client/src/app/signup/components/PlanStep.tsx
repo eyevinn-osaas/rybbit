@@ -131,7 +131,39 @@ export function PlanStep({
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-6">{t("Choose your plan")}</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-semibold">{t("Choose your plan")}</h2>
+        {/* Monthly/Annual toggle */}
+        <div className="relative flex bg-neutral-150 dark:bg-neutral-850 border border-neutral-250 dark:border-neutral-750 rounded-full p-0.5 text-sm">
+          <button
+            onClick={() => setIsAnnual(false)}
+            className={cn(
+              "px-2.5 py-1 rounded-full transition-colors cursor-pointer",
+              !isAnnual
+                ? "bg-white dark:bg-white/20 text-neutral-700 dark:text-neutral-100 font-medium"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+            )}
+          >
+            {t("Monthly")}
+          </button>
+          <button
+            onClick={() => setIsAnnual(true)}
+            className={cn(
+              "px-2.5 py-1 rounded-full transition-colors cursor-pointer",
+              isAnnual
+                ? "bg-white dark:bg-white/20 text-neutral-700 dark:text-neutral-100 font-medium"
+                : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+            )}
+          >
+            {t("Annual")}
+          </button>
+          {isAnnual && (
+            <span className="absolute -top-3 -right-12 text-[10px] text-white bg-emerald-500 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              4 months free
+            </span>
+          )}
+        </div>
+      </div>
       <div className="space-y-6">
         {/* Event slider */}
         <div className="space-y-3">
@@ -209,58 +241,27 @@ export function PlanStep({
           </div>
         )}
 
-        {/* Monthly/Annual toggle */}
-        <div className="flex items-center justify-center">
-          <div className="relative flex bg-neutral-150 dark:bg-neutral-850 border border-neutral-250 dark:border-neutral-750 rounded-full p-1 text-sm">
-            <button
-              onClick={() => setIsAnnual(false)}
-              className={cn(
-                "px-3 py-1 rounded-full transition-colors cursor-pointer",
-                !isAnnual
-                  ? "bg-white dark:bg-white/20 text-neutral-700 dark:text-neutral-100 font-medium"
-                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
-              )}
+        <div className="flex flex-col gap-4">
+          {/* Subscribe button */}
+          {eventLimit !== "Custom" && (
+            <Button
+              className="w-full transition-all duration-300 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={onSubscribe}
+              disabled={isLoading}
+              variant="success"
             >
-              {t("Monthly")}
-            </button>
-            <button
-              onClick={() => setIsAnnual(true)}
-              className={cn(
-                "px-3 py-1 rounded-full transition-colors cursor-pointer",
-                isAnnual
-                  ? "bg-white dark:bg-white/20 text-neutral-700 dark:text-neutral-100 font-medium"
-                  : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
-              )}
-            >
-              {t("Annual")}
-            </button>
-            {isAnnual && (
-              <span className="absolute -top-3 -right-12 text-[10px] text-white bg-emerald-500 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                4 months free
-              </span>
-            )}
-          </div>
+              {isLoading ? t("Loading...") : t("Start free trial")}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Footer text */}
+          {eventLimit !== "Custom" && (
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              {t("Your card won't be charged until your 7-day trial has ended. You can cancel anytime.")}
+            </p>
+          )}
         </div>
-
-        {/* Subscribe button */}
-        {eventLimit !== "Custom" && (
-          <Button
-            className="w-full transition-all duration-300 h-11 bg-emerald-600 hover:bg-emerald-500 text-white"
-            onClick={onSubscribe}
-            disabled={isLoading}
-            variant="success"
-          >
-            {isLoading ? t("Loading...") : t("Start free trial")}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        )}
-
-        {/* Footer text */}
-        {eventLimit !== "Custom" && (
-          <p className="text-xs text-center text-neutral-500 dark:text-neutral-400">
-            {t("Your card won't be charged until your 7-day trial has ended")}
-          </p>
-        )}
       </div>
     </div>
   );

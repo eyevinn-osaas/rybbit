@@ -315,9 +315,16 @@ function SignupPageContent() {
         </div>
 
         <div className="flex-1 flex flex-col justify-center w-full max-w-[550px] mx-auto">
-          <h1 className="text-lg text-neutral-600 dark:text-neutral-300 mb-6">
-            {IS_CLOUD ? t("Start your 7-day free trial") : t("Get started with Rybbit")}
-          </h1>
+          <div className="mb-8">
+            <h1 className="text-3xl font-medium">
+              {IS_CLOUD ? t("Start your 7-day free trial") : t("Get started with Rybbit")}
+            </h1>
+            {IS_CLOUD && (
+              <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3">
+                {t("Start collecting analytics in minutes")}
+              </p>
+            )}
+          </div>
 
           {/* Horizontal step indicator */}
           <div className="flex items-center w-full mb-8">
