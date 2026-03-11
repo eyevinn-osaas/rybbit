@@ -6,7 +6,7 @@ import { getStripePrices, STRIPE_TIERS } from "@/lib/stripe";
 import { usePreviewSubscriptionUpdate, useUpdateSubscription } from "@/lib/subscription/useSubscriptionMutations";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { CheckoutModal } from "../CheckoutModal";
+import { CheckoutModal } from "../components/CheckoutModal";
 import { PlanChangePreviewDialog } from "./PlanChangePreviewDialog";
 
 interface PlanDialogProps {

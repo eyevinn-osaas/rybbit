@@ -1,7 +1,7 @@
 "use client";
 
 import { AuthError } from "@/components/auth/AuthError";
-import { CheckoutModal } from "@/components/subscription/CheckoutModal";
+import { CheckoutModal } from "@/components/subscription/components/CheckoutModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { useExtracted } from "next-intl";

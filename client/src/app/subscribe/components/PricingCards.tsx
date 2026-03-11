@@ -19,7 +19,7 @@ import {
   formatEventTier
 } from "./utils";
 
-import { CheckoutModal } from "@/components/subscription/CheckoutModal";
+import { CheckoutModal } from "@/components/subscription/components/CheckoutModal";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
 

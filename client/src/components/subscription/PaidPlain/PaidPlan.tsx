@@ -11,6 +11,7 @@ import { formatDate } from "../../../lib/subscription/planUtils";
 import { useStripeSubscription } from "../../../lib/subscription/useStripeSubscription";
 import { UsageChart } from "../../UsageChart";
 import { authClient } from "@/lib/auth";
+import { InvoicesCard } from "../components/InvoicesCard";
 import { PlanDialog } from "./PlanDialog";
 
 export function PaidPlan() {
@@ -218,6 +219,7 @@ export function PaidPlan() {
           </div>
         </CardContent>
       </Card>
+      <InvoicesCard />
     </div>
   );
 }

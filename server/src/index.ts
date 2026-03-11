@@ -91,6 +91,7 @@ import {
 import {
   createCheckoutSession,
   createPortalSession,
+  getInvoices,
   getSubscription,
   handleWebhook,
   previewSubscriptionUpdate,
@@ -354,6 +355,7 @@ async function stripeAdminRoutes(fastify: FastifyInstance) {
     fastify.post("/stripe/preview-subscription-update", authOnly, previewSubscriptionUpdate);
     fastify.post("/stripe/update-subscription", authOnly, updateSubscription);
     fastify.get("/stripe/subscription", authOnly, getSubscription);
+    fastify.get("/stripe/invoices", authOnly, getInvoices);
     fastify.post("/stripe/webhook", { config: { rawBody: true } }, handleWebhook); // Public - Stripe webhook
 
     // Admin Routes
