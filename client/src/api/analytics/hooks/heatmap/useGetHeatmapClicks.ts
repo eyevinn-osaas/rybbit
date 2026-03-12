@@ -3,18 +3,17 @@ import { fetchHeatmapClicks } from "../../endpoints/heatmap";
 import { buildApiParams } from "../../../utils";
 import { useStore } from "../../../../lib/store";
 
-export function useGetHeatmapClicks(pathname: string, deviceType?: string) {
+export function useGetHeatmapClicks(pathname: string) {
   const { site, time, filters } = useStore();
 
   const params = buildApiParams(time, { filters });
 
   return useQuery({
-    queryKey: ["heatmap-clicks", site, pathname, deviceType, params],
+    queryKey: ["heatmap-clicks", site, pathname, params],
     queryFn: () =>
       fetchHeatmapClicks(site!, {
         ...params,
         pathname,
-        deviceType,
       }),
     enabled: !!site && !!pathname,
     staleTime: 1000 * 60 * 5,

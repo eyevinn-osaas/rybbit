@@ -1,5 +1,6 @@
 "use client";
 
+import { useMeasure } from "@uidotdev/usehooks";
 import { ArrowLeft, Loader2, Monitor, Smartphone } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,7 +16,6 @@ interface HeatmapViewerProps {
 }
 
 function getHeatmapColor(intensity: number): [number, number, number] {
-  // blue -> cyan -> green -> yellow -> red
   if (intensity < 0.25) {
     const t = intensity / 0.25;
     return [0, Math.round(t * 255), 255];
@@ -31,105 +31,165 @@ function getHeatmapColor(intensity: number): [number, number, number] {
   }
 }
 
-function renderHeatmap(canvas: HTMLCanvasElement, clicks: HeatmapClick[], scale: number) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+/**
+ * Resolve each click to a canvas coordinate using element-based positioning:
+ * 1. Find the element by CSS selector in the snapshot iframe
+ * 2. Scale the click's pageX from its original viewport to the snapshot width
+ *    to approximate horizontal offset within the element
+ * 3. Use element's vertical center (Y within a clickable element is negligible)
+ */
+function resolveClickPositions(
+  clicks: HeatmapClick[],
+  iframeDoc: Document,
+  snapshotWidth: number
+): { x: number; y: number }[] {
+  // Cache element lookups
+  const rectCache = new Map<string, DOMRect | null>();
+  const getRect = (selector: string): DOMRect | null => {
+    if (rectCache.has(selector)) return rectCache.get(selector)!;
+    try {
+      const el = iframeDoc.querySelector(selector);
+      const rect = el ? el.getBoundingClientRect() : null;
+      rectCache.set(selector, rect);
+      return rect;
+    } catch {
+      rectCache.set(selector, null);
+      return null;
+    }
+  };
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const points: { x: number; y: number }[] = [];
 
-  const radius = 25 * scale;
-
-  // Draw intensity (grayscale)
   for (const click of clicks) {
-    const pageX = click.x + click.scroll_x;
-    const pageY = click.y + click.scroll_y;
-    const displayX = pageX * scale;
-    const displayY = pageY * scale;
+    const rect = getRect(click.selector);
+    if (!rect || (rect.width === 0 && rect.height === 0)) continue;
 
-    const gradient = ctx.createRadialGradient(displayX, displayY, 0, displayX, displayY, radius);
-    gradient.addColorStop(0, "rgba(0, 0, 0, 0.05)");
-    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-    ctx.fillStyle = gradient;
+    // Scale the click's absolute X from its viewport to the snapshot width
+    const pageX = click.x + click.scroll_x;
+    const scaledX = pageX * (snapshotWidth / click.viewport_width);
+
+    // Compute offset within the element
+    const offsetX = scaledX - rect.left;
+
+    // Clamp X to element bounds (with small padding to avoid edge artifacts)
+    const pad = 4;
+    const clampedX = Math.max(-pad, Math.min(offsetX, rect.width + pad));
+
+    // Use element's vertical center — clickable elements are typically short
+    const dotX = rect.left + clampedX;
+    const dotY = rect.top + rect.height / 2;
+
+    points.push({ x: dotX, y: dotY });
+  }
+
+  return points;
+}
+
+function renderHeatmapCanvas(
+  canvas: HTMLCanvasElement,
+  points: { x: number; y: number }[]
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || !points.length) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const radius = 25;
+
+  // Draw additive grayscale blobs
+  for (const pt of points) {
+    const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
+    grad.addColorStop(0, "rgba(0,0,0,0.07)");
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(displayX, displayY, radius, 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Colorize the grayscale intensity map
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    if (alpha > 0) {
-      const intensity = Math.min(alpha / 80, 1);
+  // Colorize accumulated alpha → heatmap colours
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = d[i + 3];
+    if (a > 0) {
+      const intensity = Math.min(a / 100, 1);
       const [r, g, b] = getHeatmapColor(intensity);
-      data[i] = r;
-      data[i + 1] = g;
-      data[i + 2] = b;
-      data[i + 3] = Math.min(Math.round(intensity * 180) + 40, 200);
+      d[i] = r;
+      d[i + 1] = g;
+      d[i + 2] = b;
+      d[i + 3] = Math.min(Math.round(intensity * 200) + 30, 210);
     }
   }
-
   ctx.putImageData(imageData, 0, 0);
 }
 
 export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
   const t = useExtracted();
   const [deviceType, setDeviceType] = useState<"desktop" | "mobile">("desktop");
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [measureRef, { width: containerWidth }] = useMeasure();
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<any>(null);
-  const [contentHeight, setContentHeight] = useState<number>(0);
+  const [contentHeight, setContentHeight] = useState(0);
 
   const { data: snapshotData, isLoading: isSnapshotLoading } = useGetHeatmapSnapshot(pathname, deviceType);
-  const { data: clicks, isLoading: isClicksLoading } = useGetHeatmapClicks(pathname, deviceType);
+  const { data: clicks, isLoading: isClicksLoading } = useGetHeatmapClicks(pathname);
 
   const isLoading = isSnapshotLoading || isClicksLoading;
 
-  const playerWidth = deviceType === "mobile" ? 375 : snapshotData?.metadata?.screen_width || 1280;
+  const nativeWidth = deviceType === "mobile" ? 375 : snapshotData?.metadata?.screen_width || 1280;
+  const nativeViewportHeight = snapshotData?.metadata?.screen_height || 800;
+  const cssScale = containerWidth ? Math.min(containerWidth / nativeWidth, 1) : 1;
 
-  // Expand the rrweb iframe to show the full page content (not just the viewport)
   const expandIframeToFullHeight = useCallback(() => {
     if (!playerContainerRef.current) return;
-
     const iframe = playerContainerRef.current.querySelector("iframe");
     if (!iframe) return;
-
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
-
       const fullHeight = doc.documentElement.scrollHeight;
       if (fullHeight <= 0) return;
 
-      // Expand iframe to full document height
       iframe.style.height = `${fullHeight}px`;
-
-      // Expand the rrweb frame wrapper to match
       const frameEl = playerContainerRef.current.querySelector(".rr-player__frame") as HTMLElement;
-      if (frameEl) {
-        frameEl.style.height = `${fullHeight}px`;
-      }
-
-      // Expand the outer rr-player wrapper too
+      if (frameEl) frameEl.style.height = `${fullHeight}px`;
       const playerEl = playerContainerRef.current.querySelector(".rr-player") as HTMLElement;
-      if (playerEl) {
-        playerEl.style.height = `${fullHeight}px`;
-      }
+      if (playerEl) playerEl.style.height = `${fullHeight}px`;
 
       setContentHeight(fullHeight);
     } catch {
-      // Cross-origin iframe - can't access contentDocument
+      // cross-origin
     }
   }, []);
 
-  // Initialize the rrweb replayer when snapshot data arrives
+  const renderHeatmap = useCallback(
+    (clickData: HeatmapClick[]) => {
+      if (!playerContainerRef.current || !canvasRef.current || !clickData.length) return;
+
+      const iframe = playerContainerRef.current.querySelector("iframe");
+      if (!iframe?.contentDocument) return;
+
+      const fullHeight = contentHeight || nativeViewportHeight;
+      const canvas = canvasRef.current;
+      canvas.width = nativeWidth;
+      canvas.height = fullHeight;
+      canvas.style.width = `${nativeWidth}px`;
+      canvas.style.height = `${fullHeight}px`;
+
+      const points = resolveClickPositions(clickData, iframe.contentDocument, nativeWidth);
+      renderHeatmapCanvas(canvas, points);
+    },
+    [nativeWidth, nativeViewportHeight, contentHeight]
+  );
+
+  // Initialize rrweb replayer
   useEffect(() => {
     if (!snapshotData?.events?.length || !playerContainerRef.current) return;
 
-    // Clear previous player
     if (playerRef.current) {
       playerRef.current.pause();
       playerRef.current = null;
@@ -144,9 +204,8 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
           target: playerContainerRef.current!,
           props: {
             events: snapshotData.events as any,
-            width: playerWidth,
-            // Use a large initial height - we'll expand to full content height after render
-            height: snapshotData.metadata?.screen_height || 800,
+            width: nativeWidth,
+            height: nativeViewportHeight,
             autoPlay: false,
             showController: false,
             mouseTail: false,
@@ -154,10 +213,13 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
         });
         playerRef.current = player;
 
-        // Wait for the DOM to render inside the iframe, then expand
-        setTimeout(expandIframeToFullHeight, 300);
-        setTimeout(expandIframeToFullHeight, 800);
-        setTimeout(expandIframeToFullHeight, 1500);
+        const settle = () => {
+          expandIframeToFullHeight();
+          if (clicks?.length) renderHeatmap(clicks);
+        };
+        setTimeout(settle, 300);
+        setTimeout(settle, 800);
+        setTimeout(settle, 1500);
       } catch (error) {
         console.error("Failed to initialize rrweb player:", error);
       }
@@ -171,38 +233,17 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
         playerRef.current = null;
       }
     };
-  }, [snapshotData, deviceType, playerWidth, expandIframeToFullHeight]);
-
-  // Render heatmap overlay when clicks data arrives or content height changes
-  const updateHeatmap = useCallback(() => {
-    if (!canvasRef.current || !clicks?.length || !playerContainerRef.current) return;
-
-    const frameEl = playerContainerRef.current.querySelector(".rr-player__frame") as HTMLElement;
-    if (!frameEl) return;
-
-    const replayerWidth = frameEl.offsetWidth;
-    if (!replayerWidth) return;
-
-    const scale = replayerWidth / playerWidth;
-
-    // Use the expanded content height, or fall back to the max click position
-    const maxClickY = Math.max(...clicks.map((c) => c.y + c.scroll_y), 0);
-    const canvasHeight = Math.max(contentHeight * scale, (maxClickY + 200) * scale, frameEl.offsetHeight);
-
-    const canvas = canvasRef.current;
-    canvas.width = replayerWidth;
-    canvas.height = canvasHeight;
-    canvas.style.width = `${replayerWidth}px`;
-    canvas.style.height = `${canvasHeight}px`;
-
-    renderHeatmap(canvas, clicks, scale);
-  }, [clicks, playerWidth, contentHeight]);
+  }, [snapshotData, deviceType, nativeWidth, nativeViewportHeight, expandIframeToFullHeight, clicks, renderHeatmap]);
 
   useEffect(() => {
-    // Small delay to let the replayer render first
-    const timer = setTimeout(updateHeatmap, 600);
-    return () => clearTimeout(timer);
-  }, [updateHeatmap]);
+    if (clicks?.length && playerRef.current) {
+      const timer = setTimeout(() => renderHeatmap(clicks), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [clicks, contentHeight, renderHeatmap]);
+
+  const nativeHeight = contentHeight || nativeViewportHeight;
+  const totalClicks = clicks?.length ?? 0;
 
   return (
     <div className="flex flex-col gap-3 h-full">
@@ -251,22 +292,44 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
           {t("Unable to load page preview")}
         </div>
       ) : (
-        <div ref={containerRef} className="flex-1 overflow-auto border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white">
-          <div className="relative mx-auto" style={{ width: deviceType === "mobile" ? 375 : "100%" }}>
-            <div ref={playerContainerRef} className="[&_.rr-player]:!shadow-none [&_.rr-player__frame]:!border-none" />
-            <canvas
-              ref={canvasRef}
-              className="absolute top-0 left-0 pointer-events-none"
-              style={{ zIndex: 10 }}
-            />
+        <div
+          ref={measureRef}
+          className="flex-1 overflow-auto border border-neutral-200 dark:border-neutral-800 rounded-lg bg-white"
+        >
+          <div
+            style={{
+              width: nativeWidth * cssScale,
+              height: nativeHeight * cssScale,
+              margin: deviceType === "mobile" ? "0 auto" : undefined,
+            }}
+          >
+            <div
+              style={{
+                width: nativeWidth,
+                height: nativeHeight,
+                transform: `scale(${cssScale})`,
+                transformOrigin: "top left",
+              }}
+              className="relative"
+            >
+              <div
+                ref={playerContainerRef}
+                className="[&_.rr-player]:!shadow-none [&_.rr-player__frame]:!border-none"
+              />
+              <canvas
+                ref={canvasRef}
+                className="absolute top-0 left-0 pointer-events-none"
+                style={{ zIndex: 10 }}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Click count */}
-      {clicks && clicks.length > 0 && (
+      {/* Summary */}
+      {totalClicks > 0 && (
         <div className="text-sm text-neutral-500 flex-shrink-0">
-          {clicks.length.toLocaleString()} {t("clicks")}
+          {totalClicks.toLocaleString()} {t("clicks")}
         </div>
       )}
     </div>

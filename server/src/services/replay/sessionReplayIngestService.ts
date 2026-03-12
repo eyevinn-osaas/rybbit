@@ -15,6 +15,85 @@ export interface RequestMetadata {
   referrer: string;
 }
 
+// In-memory cache of FullSnapshot node trees per session, used to resolve
+// rrweb node IDs to CSS selectors when processing click events.
+const snapshotSelectorCache = new Map<string, { map: Map<number, string>; ts: number }>();
+const SNAPSHOT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const SNAPSHOT_CACHE_MAX = 5000;
+
+/**
+ * Build a CSS selector for every element node in an rrweb serialised DOM tree.
+ * Uses `[id="…"]` when an element has an id (globally unique, stops the chain)
+ * and `tag:nth-of-type(n)` otherwise, chained from the nearest id ancestor (or body).
+ */
+function buildSelectorMap(rootNode: any): Map<number, string> {
+  const map = new Map<number, string>();
+
+  function traverse(node: any, parentNode: any, parentSelector: string) {
+    if (!node) return;
+
+    // Element node (type 2 in rrweb's serialised format)
+    if (node.type === 2) {
+      const tag = node.tagName?.toLowerCase();
+      if (!tag) return;
+
+      let selector: string;
+      const htmlId = node.attributes?.id;
+
+      if (htmlId && typeof htmlId === "string" && htmlId.trim()) {
+        // Element has an id – use attribute selector (handles special chars)
+        selector = `[id="${htmlId.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`;
+      } else {
+        // Compute nth-of-type position among same-tag siblings
+        let nth = 1;
+        if (parentNode?.childNodes) {
+          for (const sib of parentNode.childNodes) {
+            if (sib === node) break;
+            if (sib.type === 2 && sib.tagName?.toLowerCase() === tag) nth++;
+          }
+        }
+        const segment = `${tag}:nth-of-type(${nth})`;
+        selector = parentSelector ? `${parentSelector}>${segment}` : segment;
+      }
+
+      if (node.id !== undefined) {
+        map.set(node.id, selector);
+      }
+
+      if (node.childNodes) {
+        for (const child of node.childNodes) {
+          traverse(child, node, selector);
+        }
+      }
+    } else if (node.childNodes) {
+      // Document / doctype / other wrapper – pass through
+      for (const child of node.childNodes) {
+        traverse(child, node, parentSelector);
+      }
+    }
+  }
+
+  traverse(rootNode, null, "");
+  return map;
+}
+
+/** Evict stale entries from the snapshot cache. */
+function pruneSnapshotCache() {
+  if (snapshotSelectorCache.size <= SNAPSHOT_CACHE_MAX) return;
+  const now = Date.now();
+  for (const [key, entry] of snapshotSelectorCache) {
+    if (now - entry.ts > SNAPSHOT_CACHE_TTL) {
+      snapshotSelectorCache.delete(key);
+    }
+  }
+  // If still over max, drop oldest
+  if (snapshotSelectorCache.size > SNAPSHOT_CACHE_MAX) {
+    const entries = [...snapshotSelectorCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+    const toRemove = entries.slice(0, entries.length - SNAPSHOT_CACHE_MAX);
+    for (const [key] of toRemove) snapshotSelectorCache.delete(key);
+  }
+}
+
 /**
  * Service responsible for ingesting session replay data
  * Handles recording events and updating metadata
@@ -144,6 +223,20 @@ export class SessionReplayIngestService {
       const viewportHeight = metadata?.viewportHeight || 0;
       const deviceType = viewportWidth >= 1024 ? "desktop" : viewportWidth >= 768 ? "tablet" : "mobile";
 
+      // --- Build / retrieve the selector map for this session ---
+      // If this batch contains a FullSnapshot (type 2), parse it and cache it.
+      for (const event of events) {
+        const eventType = typeof event.type === "string" ? parseInt(event.type as string) : event.type;
+        if (eventType === 2 && event.data?.node) {
+          const selectorMap = buildSelectorMap(event.data.node);
+          snapshotSelectorCache.set(sessionId, { map: selectorMap, ts: Date.now() });
+          pruneSnapshotCache();
+          break;
+        }
+      }
+
+      const selectorMap = snapshotSelectorCache.get(sessionId)?.map;
+
       // Track scroll state from scroll events in this batch
       let scrollX = 0;
       let scrollY = 0;
@@ -167,11 +260,15 @@ export class SessionReplayIngestService {
 
         // Extract click events (source 2 = MouseInteraction, type 2 = Click, type 4 = DblClick)
         if (source === 2 && (event.data.type === 2 || event.data.type === 4)) {
+          const nodeId: number | undefined = event.data.id;
+          const selector = nodeId !== undefined && selectorMap ? (selectorMap.get(nodeId) ?? "") : "";
+
           clicksToInsert.push({
             site_id: siteId,
             session_id: sessionId,
             timestamp: event.timestamp,
             pathname,
+            selector,
             x: event.data.x || 0,
             y: event.data.y || 0,
             scroll_x: scrollX,

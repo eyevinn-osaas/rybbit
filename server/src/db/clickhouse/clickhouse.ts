@@ -176,6 +176,7 @@ export const initializeClickhouse = async () => {
         session_id String,
         timestamp DateTime64(3),
         pathname String,
+        selector String DEFAULT '',
         x UInt16,
         y UInt16,
         scroll_x UInt32,
@@ -188,6 +189,14 @@ export const initializeClickhouse = async () => {
       PARTITION BY toYYYYMM(timestamp)
       ORDER BY (site_id, pathname, timestamp)
       TTL toDateTime(timestamp) + INTERVAL 30 DAY
+    `,
+  });
+
+  // Add selector column if table already exists
+  await clickhouse.exec({
+    query: `
+      ALTER TABLE heatmap_clicks
+        ADD COLUMN IF NOT EXISTS selector String DEFAULT ''
     `,
   });
 

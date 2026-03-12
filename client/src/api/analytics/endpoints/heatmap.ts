@@ -8,12 +8,12 @@ export interface HeatmapPage {
 }
 
 export interface HeatmapClick {
+  selector: string;
   x: number;
   y: number;
   scroll_x: number;
   scroll_y: number;
   viewport_width: number;
-  viewport_height: number;
 }
 
 export interface HeatmapSnapshotResponse {
@@ -27,7 +27,6 @@ export interface HeatmapSnapshotResponse {
 
 export interface HeatmapClicksParams extends CommonApiParams {
   pathname: string;
-  deviceType?: string;
 }
 
 /**
@@ -39,14 +38,16 @@ export async function fetchHeatmapPages(site: string | number, params: CommonApi
 }
 
 /**
- * Fetch heatmap click data for a specific page
+ * Fetch individual heatmap clicks with selectors and coordinates
  * GET /api/sites/:siteId/heatmap/clicks
  */
-export async function fetchHeatmapClicks(site: string | number, params: HeatmapClicksParams): Promise<HeatmapClick[]> {
+export async function fetchHeatmapClicks(
+  site: string | number,
+  params: HeatmapClicksParams
+): Promise<HeatmapClick[]> {
   return authedFetch<HeatmapClick[]>(`/sites/${site}/heatmap/clicks`, {
     ...toQueryParams(params),
     pathname: params.pathname,
-    deviceType: params.deviceType,
   });
 }
 

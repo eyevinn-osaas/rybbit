@@ -9,12 +9,12 @@ export interface HeatmapPage {
 }
 
 export interface HeatmapClick {
+  selector: string;
   x: number;
   y: number;
   scroll_x: number;
   scroll_y: number;
   viewport_width: number;
-  viewport_height: number;
 }
 
 export class HeatmapService {
@@ -43,28 +43,17 @@ export class HeatmapService {
     return processResults<HeatmapPage>(result);
   }
 
-  async getHeatmapClicks(
-    siteId: number,
-    pathname: string,
-    deviceType: string | undefined,
-    params: FilterParams
-  ): Promise<HeatmapClick[]> {
+  async getHeatmapClicks(siteId: number, pathname: string, params: FilterParams): Promise<HeatmapClick[]> {
     const timeStatement = getTimeStatement(params);
-
-    let deviceFilter = "";
-    if (deviceType === "desktop") {
-      deviceFilter = "AND viewport_width >= 1024";
-    } else if (deviceType === "mobile") {
-      deviceFilter = "AND viewport_width < 768";
-    }
 
     const query = `
       SELECT
-        x, y, scroll_x, scroll_y, viewport_width, viewport_height
+        selector,
+        x, y, scroll_x, scroll_y, viewport_width
       FROM heatmap_clicks
       WHERE site_id = {siteId:UInt16}
         AND pathname = {pathname:String}
-        ${deviceFilter}
+        AND selector != ''
         ${timeStatement}
       LIMIT 10000
     `;

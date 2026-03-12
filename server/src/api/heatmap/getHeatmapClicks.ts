@@ -6,7 +6,6 @@ export async function getHeatmapClicks(
     Params: { siteId: string };
     Querystring: {
       pathname: string;
-      deviceType?: string;
       start_date?: string;
       end_date?: string;
       time_zone?: string;
@@ -18,15 +17,14 @@ export async function getHeatmapClicks(
 ) {
   try {
     const siteId = Number(request.params.siteId);
-    const { pathname, deviceType, start_date, end_date, time_zone, past_minutes_start, past_minutes_end } =
-      request.query;
+    const { pathname, start_date, end_date, time_zone, past_minutes_start, past_minutes_end } = request.query;
 
     if (!pathname) {
       return reply.status(400).send({ error: "pathname is required" });
     }
 
     const heatmapService = new HeatmapService();
-    const clicks = await heatmapService.getHeatmapClicks(siteId, pathname, deviceType, {
+    const clicks = await heatmapService.getHeatmapClicks(siteId, pathname, {
       start_date: start_date || "",
       end_date: end_date || "",
       time_zone: time_zone || "",
