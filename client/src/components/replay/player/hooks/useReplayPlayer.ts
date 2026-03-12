@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import rrwebPlayer from "rrweb-player";
+import { useShallow } from "zustand/react/shallow";
 import { useReplayStore } from "../../replayStore";
 import { CONTROLS_HEIGHT } from "../utils/replayUtils";
 
@@ -12,7 +13,14 @@ interface UseReplayPlayerProps {
 export const useReplayPlayer = ({ data, width, height }: UseReplayPlayerProps) => {
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
-  const { setPlayer, setCurrentTime, setIsPlaying, setDuration } = useReplayStore();
+  const { setPlayer, setCurrentTime, setIsPlaying, setDuration } = useReplayStore(
+    useShallow(s => ({
+      setPlayer: s.setPlayer,
+      setCurrentTime: s.setCurrentTime,
+      setIsPlaying: s.setIsPlaying,
+      setDuration: s.setDuration,
+    }))
+  );
 
   // Store width/height in refs for the resize effect
   const widthRef = useRef(width);

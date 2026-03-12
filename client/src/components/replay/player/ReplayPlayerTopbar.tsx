@@ -8,6 +8,7 @@ import {
   DeviceTypeTooltipIcon,
   OperatingSystemTooltipIcon,
 } from "@/components/TooltipIcons/TooltipIcons";
+import { useShallow } from "zustand/react/shallow";
 import { useReplayStore } from "../replayStore";
 
 // Extract pathname from full URL for display
@@ -28,7 +29,9 @@ interface PageTransition {
 export function ReplayPlayerTopbar() {
   const params = useParams();
   const siteId = Number(params.site);
-  const { sessionId, currentTime } = useReplayStore();
+  const { sessionId, currentTime } = useReplayStore(
+    useShallow(s => ({ sessionId: s.sessionId, currentTime: s.currentTime }))
+  );
 
   const { data } = useGetSessionReplayEvents(siteId, sessionId);
 
