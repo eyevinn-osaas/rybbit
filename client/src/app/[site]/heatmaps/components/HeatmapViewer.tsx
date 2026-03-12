@@ -81,11 +81,49 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
   const playerContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<any>(null);
+  const [contentHeight, setContentHeight] = useState<number>(0);
 
   const { data: snapshotData, isLoading: isSnapshotLoading } = useGetHeatmapSnapshot(pathname, deviceType);
   const { data: clicks, isLoading: isClicksLoading } = useGetHeatmapClicks(pathname, deviceType);
 
   const isLoading = isSnapshotLoading || isClicksLoading;
+
+  const playerWidth = deviceType === "mobile" ? 375 : snapshotData?.metadata?.screen_width || 1280;
+
+  // Expand the rrweb iframe to show the full page content (not just the viewport)
+  const expandIframeToFullHeight = useCallback(() => {
+    if (!playerContainerRef.current) return;
+
+    const iframe = playerContainerRef.current.querySelector("iframe");
+    if (!iframe) return;
+
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      const fullHeight = doc.documentElement.scrollHeight;
+      if (fullHeight <= 0) return;
+
+      // Expand iframe to full document height
+      iframe.style.height = `${fullHeight}px`;
+
+      // Expand the rrweb frame wrapper to match
+      const frameEl = playerContainerRef.current.querySelector(".rr-player__frame") as HTMLElement;
+      if (frameEl) {
+        frameEl.style.height = `${fullHeight}px`;
+      }
+
+      // Expand the outer rr-player wrapper too
+      const playerEl = playerContainerRef.current.querySelector(".rr-player") as HTMLElement;
+      if (playerEl) {
+        playerEl.style.height = `${fullHeight}px`;
+      }
+
+      setContentHeight(fullHeight);
+    } catch {
+      // Cross-origin iframe - can't access contentDocument
+    }
+  }, []);
 
   // Initialize the rrweb replayer when snapshot data arrives
   useEffect(() => {
@@ -97,23 +135,29 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
       playerRef.current = null;
     }
     playerContainerRef.current.innerHTML = "";
+    setContentHeight(0);
 
-    let rrwebPlayer: any;
     const initPlayer = async () => {
       try {
         const rrwebModule = await import("rrweb-player");
-        rrwebPlayer = new rrwebModule.default({
+        const player = new rrwebModule.default({
           target: playerContainerRef.current!,
           props: {
             events: snapshotData.events as any,
-            width: deviceType === "mobile" ? 375 : snapshotData.metadata?.screen_width || 1280,
-            height: deviceType === "mobile" ? 667 : snapshotData.metadata?.screen_height || 800,
+            width: playerWidth,
+            // Use a large initial height - we'll expand to full content height after render
+            height: snapshotData.metadata?.screen_height || 800,
             autoPlay: false,
             showController: false,
             mouseTail: false,
           },
         });
-        playerRef.current = rrwebPlayer;
+        playerRef.current = player;
+
+        // Wait for the DOM to render inside the iframe, then expand
+        setTimeout(expandIframeToFullHeight, 300);
+        setTimeout(expandIframeToFullHeight, 800);
+        setTimeout(expandIframeToFullHeight, 1500);
       } catch (error) {
         console.error("Failed to initialize rrweb player:", error);
       }
@@ -127,41 +171,36 @@ export function HeatmapViewer({ pathname, onBack }: HeatmapViewerProps) {
         playerRef.current = null;
       }
     };
-  }, [snapshotData, deviceType]);
+  }, [snapshotData, deviceType, playerWidth, expandIframeToFullHeight]);
 
-  // Render heatmap overlay when clicks data arrives
+  // Render heatmap overlay when clicks data arrives or content height changes
   const updateHeatmap = useCallback(() => {
     if (!canvasRef.current || !clicks?.length || !playerContainerRef.current) return;
 
-    const replayerEl = playerContainerRef.current.querySelector(".rr-player__frame") as HTMLElement;
-    if (!replayerEl) return;
+    const frameEl = playerContainerRef.current.querySelector(".rr-player__frame") as HTMLElement;
+    if (!frameEl) return;
 
-    const replayerWidth = replayerEl.offsetWidth;
-    const replayerHeight = replayerEl.offsetHeight;
+    const replayerWidth = frameEl.offsetWidth;
+    if (!replayerWidth) return;
 
-    if (!replayerWidth || !replayerHeight) return;
+    const scale = replayerWidth / playerWidth;
+
+    // Use the expanded content height, or fall back to the max click position
+    const maxClickY = Math.max(...clicks.map((c) => c.y + c.scroll_y), 0);
+    const canvasHeight = Math.max(contentHeight * scale, (maxClickY + 200) * scale, frameEl.offsetHeight);
 
     const canvas = canvasRef.current;
-    // Use the original viewport width to calculate scale
-    const originalWidth = deviceType === "mobile" ? 375 : snapshotData?.metadata?.screen_width || 1280;
-    const scale = replayerWidth / originalWidth;
-
-    // Size canvas to match the replayer frame content
-    // Height needs to be large enough for absolute-positioned clicks
-    const maxScrollY = Math.max(...clicks.map((c) => c.y + c.scroll_y), 0);
-    const canvasHeight = Math.max(replayerHeight, (maxScrollY + 200) * scale);
-
     canvas.width = replayerWidth;
     canvas.height = canvasHeight;
     canvas.style.width = `${replayerWidth}px`;
     canvas.style.height = `${canvasHeight}px`;
 
     renderHeatmap(canvas, clicks, scale);
-  }, [clicks, snapshotData, deviceType]);
+  }, [clicks, playerWidth, contentHeight]);
 
   useEffect(() => {
     // Small delay to let the replayer render first
-    const timer = setTimeout(updateHeatmap, 500);
+    const timer = setTimeout(updateHeatmap, 600);
     return () => clearTimeout(timer);
   }, [updateHeatmap]);
 
