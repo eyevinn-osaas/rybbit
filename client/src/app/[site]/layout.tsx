@@ -62,6 +62,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             {!pathname.includes("/map") &&
               !pathname.includes("/realtime") &&
               !pathname.includes("/replay") &&
+              !pathname.includes("/heatmaps") &&
               !pathname.includes("/globe") &&
               !pathname.includes("/api-playground") && <Footer />}
           </div>

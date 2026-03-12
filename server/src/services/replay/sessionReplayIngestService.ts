@@ -117,9 +117,82 @@ export class SessionReplayIngestService {
       });
     }
 
+    // Extract click events for heatmap data
+    this.extractAndInsertClicks(siteId, sessionId, events, metadata);
+
     // Update or insert metadata
     if (metadata) {
       await this.updateSessionMetadata(siteId, sessionId, userId, identifiedUserId, metadata, requestMeta);
+    }
+  }
+
+  private async extractAndInsertClicks(
+    siteId: number,
+    sessionId: string,
+    events: Array<{ type: string | number; data: any; timestamp: number }>,
+    metadata?: { pageUrl?: string; viewportWidth?: number; viewportHeight?: number }
+  ): Promise<void> {
+    try {
+      let pathname = "/";
+      try {
+        if (metadata?.pageUrl) {
+          pathname = new URL(metadata.pageUrl).pathname;
+        }
+      } catch {}
+
+      const viewportWidth = metadata?.viewportWidth || 0;
+      const viewportHeight = metadata?.viewportHeight || 0;
+      const deviceType = viewportWidth >= 1024 ? "desktop" : viewportWidth >= 768 ? "tablet" : "mobile";
+
+      // Track scroll state from scroll events in this batch
+      let scrollX = 0;
+      let scrollY = 0;
+
+      const clicksToInsert: any[] = [];
+
+      for (const event of events) {
+        const eventType = typeof event.type === "string" ? parseInt(event.type as string) : event.type;
+
+        // Only process IncrementalSnapshot events (type 3)
+        if (eventType !== 3 || !event.data) continue;
+
+        const source = event.data.source;
+
+        // Track scroll events (source 3 = Scroll)
+        if (source === 3) {
+          scrollX = event.data.x || 0;
+          scrollY = event.data.y || 0;
+          continue;
+        }
+
+        // Extract click events (source 2 = MouseInteraction, type 2 = Click, type 4 = DblClick)
+        if (source === 2 && (event.data.type === 2 || event.data.type === 4)) {
+          clicksToInsert.push({
+            site_id: siteId,
+            session_id: sessionId,
+            timestamp: event.timestamp,
+            pathname,
+            x: event.data.x || 0,
+            y: event.data.y || 0,
+            scroll_x: scrollX,
+            scroll_y: scrollY,
+            viewport_width: viewportWidth,
+            viewport_height: viewportHeight,
+            device_type: deviceType,
+          });
+        }
+      }
+
+      if (clicksToInsert.length > 0) {
+        await clickhouse.insert({
+          table: "heatmap_clicks",
+          values: clicksToInsert,
+          format: "JSONEachRow",
+        });
+      }
+    } catch (error) {
+      // Don't fail the main ingest if heatmap extraction fails
+      console.error("Error extracting heatmap clicks:", error);
     }
   }
 

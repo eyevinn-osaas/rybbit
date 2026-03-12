@@ -69,6 +69,7 @@ import {
   getSessionReplays,
   recordSessionReplay,
 } from "./api/sessionReplay/index.js";
+import { getHeatmapPages, getHeatmapClicks, getHeatmapSnapshot } from "./api/heatmap/index.js";
 import {
   addSite,
   batchImportEvents,
@@ -284,6 +285,13 @@ async function sessionReplayRoutes(fastify: FastifyInstance) {
   fastify.delete("/sites/:siteId/session-replay/:sessionId", authSite, deleteSessionReplay);
 }
 
+async function heatmapRoutes(fastify: FastifyInstance) {
+  // Heatmaps
+  fastify.get("/sites/:siteId/heatmap/pages", publicSite, getHeatmapPages);
+  fastify.get("/sites/:siteId/heatmap/clicks", publicSite, getHeatmapClicks);
+  fastify.get("/sites/:siteId/heatmap/snapshot", publicSite, getHeatmapSnapshot);
+}
+
 async function sitesRoutes(fastify: FastifyInstance) {
   // Sites
   fastify.get("/sites/:siteId", publicSite, getSite);
@@ -376,6 +384,7 @@ async function stripeAdminRoutes(fastify: FastifyInstance) {
 async function apiRoutes(fastify: FastifyInstance) {
   await fastify.register(analyticsRoutes);
   await fastify.register(sessionReplayRoutes);
+  await fastify.register(heatmapRoutes);
   await fastify.register(sitesRoutes);
   await fastify.register(organizationsRoutes);
   await fastify.register(userRoutes);

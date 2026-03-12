@@ -168,6 +168,29 @@ export const initializeClickhouse = async () => {
       `,
   });
 
+  // Create heatmap clicks table
+  await clickhouse.exec({
+    query: `
+      CREATE TABLE IF NOT EXISTS heatmap_clicks (
+        site_id UInt16,
+        session_id String,
+        timestamp DateTime64(3),
+        pathname String,
+        x UInt16,
+        y UInt16,
+        scroll_x UInt32,
+        scroll_y UInt32,
+        viewport_width UInt16,
+        viewport_height UInt16,
+        device_type LowCardinality(String)
+      )
+      ENGINE = MergeTree()
+      PARTITION BY toYYYYMM(timestamp)
+      ORDER BY (site_id, pathname, timestamp)
+      TTL toDateTime(timestamp) + INTERVAL 30 DAY
+    `,
+  });
+
   // Create uptime monitor events table
   await clickhouse.exec({
     query: `

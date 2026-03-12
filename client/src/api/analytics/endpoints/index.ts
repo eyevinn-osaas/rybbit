@@ -133,6 +133,15 @@ export type {
 
 // Session Replay endpoints
 export { fetchSessionReplays, fetchSessionReplayEvents, deleteSessionReplay } from "./sessionReplay";
+
+// Heatmap endpoints
+export { fetchHeatmapPages, fetchHeatmapClicks, fetchHeatmapSnapshot } from "./heatmap";
+export type {
+  HeatmapPage,
+  HeatmapClick,
+  HeatmapSnapshotResponse,
+  HeatmapClicksParams,
+} from "./heatmap";
 export type {
   SessionReplayListItem,
   SessionReplayListResponse,
