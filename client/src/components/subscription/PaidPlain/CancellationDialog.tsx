@@ -127,7 +127,7 @@ export function CancellationDialog({
     if (reason === "too_expensive" && isMonthly && !isTrial) return "switch_annual";
     if (reason === "too_expensive") return "downgrade";
     if (reason === "missing_features") return "feature_request";
-    if (reason === "not_using") return "general";
+    if (reason === "not_using") return "setup_help";
     if (reason === "too_complex") return "setup_help";
     return "general";
   };
