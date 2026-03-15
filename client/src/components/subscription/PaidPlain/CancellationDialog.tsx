@@ -79,69 +79,47 @@ export function CancellationDialog({
     onOpenChange(false);
   };
 
+  const feedbackPayload = (offerShown: string, accepted: boolean, outcome: string) => ({
+    organizationId,
+    reason: reason as string,
+    reasonDetails: reasonDetails || undefined,
+    retentionOfferShown: offerShown,
+    retentionOfferAccepted: accepted,
+    outcome,
+    planNameAtCancellation: subscription.planName,
+    monthlyEventCountAtCancellation: subscription.monthlyEventCount,
+  });
+
   const handleKeepPlan = (offerShown: string) => {
-    submitFeedback.mutate({
-      organizationId,
-      reason: reason as string,
-      reasonDetails: reasonDetails || undefined,
-      retentionOfferShown: offerShown,
-      retentionOfferAccepted: true,
-      outcome: "retained",
-      planNameAtCancellation: subscription.planName,
-      monthlyEventCountAtCancellation: subscription.monthlyEventCount,
+    submitFeedback.mutate(feedbackPayload(offerShown, true, "retained"), {
+      onSettled: () => {
+        toast.success("Great, we're glad you're staying!");
+        resetAndClose();
+      },
     });
-    toast.success("Great, we're glad you're staying!");
-    resetAndClose();
   };
 
   const handleSwitchToAnnual = () => {
-    submitFeedback.mutate({
-      organizationId,
-      reason: reason as string,
-      reasonDetails: reasonDetails || undefined,
-      retentionOfferShown: "switch_annual",
-      retentionOfferAccepted: true,
-      outcome: "retained",
-      planNameAtCancellation: subscription.planName,
-      monthlyEventCountAtCancellation: subscription.monthlyEventCount,
+    submitFeedback.mutate(feedbackPayload("switch_annual", true, "retained"), {
+      onSettled: () => {
+        resetAndClose();
+        onChangePlan();
+      },
     });
-    resetAndClose();
-    onChangePlan();
   };
 
   const handleDowngrade = () => {
-    submitFeedback.mutate({
-      organizationId,
-      reason: reason as string,
-      reasonDetails: reasonDetails || undefined,
-      retentionOfferShown: "downgrade",
-      retentionOfferAccepted: true,
-      outcome: "retained",
-      planNameAtCancellation: subscription.planName,
-      monthlyEventCountAtCancellation: subscription.monthlyEventCount,
+    submitFeedback.mutate(feedbackPayload("downgrade", true, "retained"), {
+      onSettled: () => {
+        resetAndClose();
+        onChangePlan();
+      },
     });
-    resetAndClose();
-    onChangePlan();
   };
 
   const handleFinalCancel = () => {
-    submitFeedback.mutate(
-      {
-        organizationId,
-        reason: reason as string,
-        reasonDetails: reasonDetails || undefined,
-        retentionOfferShown: getRetentionOfferType(),
-        retentionOfferAccepted: false,
-        outcome: "cancelled",
-        planNameAtCancellation: subscription.planName,
-        monthlyEventCountAtCancellation: subscription.monthlyEventCount,
-      },
-      {
-        onSuccess: () => {
-          onProceedToStripe();
-        },
-      }
-    );
+    submitFeedback.mutate(feedbackPayload(getRetentionOfferType(), false, "cancelled"));
+    onProceedToStripe();
   };
 
   const getRetentionOfferType = (): string => {

@@ -72,7 +72,6 @@ export async function submitCancellationFeedback(
     console.error("Cancellation Feedback Error:", error);
     return reply.status(500).send({
       error: "Failed to submit cancellation feedback",
-      details: error.message,
     });
   }
 }
