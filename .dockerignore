@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.*
+*.md
+!README-OSC.md
+.github
+.vscode
+coverage
+.nyc_output
+client/.next
+client/node_modules
