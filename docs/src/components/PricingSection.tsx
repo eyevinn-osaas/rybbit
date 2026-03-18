@@ -10,7 +10,7 @@ import { BASIC_SITE_LIMIT, BASIC_TEAM_LIMIT, FREE_SITE_LIMIT, STANDARD_SITE_LIMI
 import { PricingCard } from "./PricingCard";
 
 // Available event tiers for the slider
-const EVENT_TIERS = [100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, "Custom"];
+const EVENT_TIERS = [100_000, 250_000, 500_000, 1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 30_000_000, 40_000_000, 50_000_000, "Custom"];
 
 export const formatter = Intl.NumberFormat("en", {
   notation: "compact",
@@ -36,6 +36,9 @@ function getFormattedPrice(eventLimit: number | string, planType: "basic" | "sta
     else if (eventLimit <= 5_000_000) monthlyPrice = 149;
     else if (eventLimit <= 10_000_000) monthlyPrice = 249;
     else if (eventLimit <= 20_000_000) monthlyPrice = 399;
+    else if (eventLimit <= 30_000_000) monthlyPrice = 549;
+    else if (eventLimit <= 40_000_000) monthlyPrice = 699;
+    else if (eventLimit <= 50_000_000) monthlyPrice = 849;
     else return { custom: true };
   } else {
     // Pro tier prices (roughly double)
@@ -47,6 +50,9 @@ function getFormattedPrice(eventLimit: number | string, planType: "basic" | "sta
     else if (eventLimit <= 5_000_000) monthlyPrice = 299;
     else if (eventLimit <= 10_000_000) monthlyPrice = 499;
     else if (eventLimit <= 20_000_000) monthlyPrice = 799;
+    else if (eventLimit <= 30_000_000) monthlyPrice = 1099;
+    else if (eventLimit <= 40_000_000) monthlyPrice = 1399;
+    else if (eventLimit <= 50_000_000) monthlyPrice = 1699;
     else return { custom: true };
   }
 
@@ -221,7 +227,7 @@ export function PricingSection({ isAnnual, setIsAnnual }: { isAnnual: boolean, s
             {EVENT_TIERS.map((tier, index) => (
               <span key={index} className={cn(eventLimitIndex === index && "font-bold text-emerald-400")}>
                 {index === EVENT_TIERS.length - 1
-                  ? "20M+"
+                  ? "50M+"
                   : typeof tier === "number" && tier >= 1_000_000
                     ? `${tier / 1_000_000}M`
                     : typeof tier === "number"

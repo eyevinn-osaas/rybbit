@@ -244,7 +244,7 @@ export function PricingCards({ isLoggedIn }: { isLoggedIn: boolean }) {
                 className={cn(eventLimitIndex === index && "font-bold text-emerald-600 dark:text-emerald-400")}
               >
                 {index === EVENT_TIERS.length - 1 && typeof tier !== "number"
-                  ? "20M+"
+                  ? "50M+"
                   : formatEventTier(tier)}
               </span>
             ))}
